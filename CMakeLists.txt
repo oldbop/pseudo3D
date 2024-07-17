@@ -16,7 +16,6 @@ endif()
 
 add_subdirectory(deps/glfw/)
 add_subdirectory(deps/stb/)
-add_subdirectory(deps/slim/)
 
 file(GLOB SOURCES CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.h
@@ -34,11 +33,6 @@ target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC
   $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-std=c++11;-Wall>
 )
 
-target_compile_options(slim INTERFACE
-  $<$<COMPILE_LANG_AND_ID:C,Clang>:-std=c99;-Wall>
-  $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-std=c++11;-Wall>
-)
-
 if(SYS_GL_HEADERS)
   target_compile_definitions(${CMAKE_PROJECT_NAME} PUBLIC SYS_GL_HEADERS)
   target_link_libraries(${CMAKE_PROJECT_NAME} OpenGL::GL)
@@ -48,4 +42,3 @@ endif()
 
 target_link_libraries(${CMAKE_PROJECT_NAME} glfw)
 target_link_libraries(${CMAKE_PROJECT_NAME} stb)
-target_link_libraries(${CMAKE_PROJECT_NAME} slim)
