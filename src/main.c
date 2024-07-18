@@ -23,8 +23,9 @@
 #endif
 
 #define TITLE  "pseudo3D"
-#define WIDTH  1000
-#define HEIGHT 800
+#define WIDTH  1280
+#define HEIGHT 960
+#define DSCALE 2
 #define PI     3.141592653589793
 
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
@@ -48,7 +49,14 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  uint32_t npixels = WIDTH * HEIGHT;
+  const int32_t dwidth = WIDTH / DSCALE;
+  const int32_t dheight = HEIGHT / DSCALE;
+  const int32_t npixels = dwidth * dheight;
+
+  printf("Screen width: %dpx\tDownscaled width: %dpx\n"
+         "Screen height: %dpx\tDownscaled height: %dpx\n",
+         WIDTH, dwidth, HEIGHT, dheight);
+
   uint32_t *colorbuf = malloc(npixels * sizeof(uint32_t));
 
   glfwMakeContextCurrent(win);
@@ -63,7 +71,7 @@ int main(int argc, char **argv) {
   glBindTexture(GL_TEXTURE_2D, ftex);
 
   // Consider using GL_BGRA and GL_UNSIGNED_INT_8_8_8_8_REV
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, WIDTH, HEIGHT, 0, GL_RGBA,
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, dwidth, dheight, 0, GL_RGBA,
                GL_UNSIGNED_INT_8_8_8_8, NULL);
 
   uint32_t fbo;
@@ -89,11 +97,11 @@ int main(int argc, char **argv) {
     }
 
     // Is there another way of doing this?
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, WIDTH, HEIGHT, GL_RGBA,
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, dwidth, dheight, GL_RGBA,
                     GL_UNSIGNED_INT_8_8_8_8, colorbuf);
 
     // Is this optimal?
-    glBlitFramebuffer(0, 0, WIDTH, HEIGHT, 0, 0, WIDTH, HEIGHT,
+    glBlitFramebuffer(0, 0, dwidth, dheight, 0, 0, WIDTH, HEIGHT,
                       GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
     glfwSwapBuffers(win);
