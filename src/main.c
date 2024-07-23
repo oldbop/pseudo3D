@@ -23,9 +23,9 @@
 #endif
 
 #define TITLE  "pseudo3D"
-#define WIDTH  1280
-#define HEIGHT 960
-#define DSCALE 2
+#define WIDTH  960
+#define HEIGHT 720
+#define DSCALE 4
 #define PI     3.141592653589793
 
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
@@ -83,17 +83,25 @@ int main(int argc, char **argv) {
 
   while (!glfwWindowShouldClose(win)) {
 
+    /*
     double time = glfwGetTime();
 
     uint8_t r = (sin(time) + 1) * 127;
     uint8_t g = (cos(time) + 1) * 127;
     uint8_t b = (cos(time + PI) + 1) * 127;
+    */
 
-    uint32_t packed = COLOR(r, g, b, 0xff);
+    uint32_t grey = COLOR(0x1a, 0x1a, 0x1a, 0xff);
 
     // Use vector intrinsics here...
     for (uint32_t i = 0; i < npixels; ++i) {
-      colorbuf[i] = packed;
+      colorbuf[i] = grey;
+    }
+
+    uint32_t white = COLOR(0xff, 0xff, 0xff, 0xff);
+
+    for (uint32_t i = 20000; i < 20050; ++i) {
+      colorbuf[i] = white;
     }
 
     // Is there another way of doing this?
