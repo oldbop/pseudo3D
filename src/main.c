@@ -30,6 +30,19 @@
 
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
 
+typedef struct {
+  int32_t dwidth, dheight, npixels;
+  uint32_t *pixels;
+} PixelArray;
+
+PixelArray parr;
+
+static inline void clear_screen(uint32_t color) {
+  for (uint32_t i = 0; i < parr.npixels; ++i) {
+    parr.pixels[i] = color;
+  }
+}
+
 int main(int argc, char **argv) {
 
   if (!glfwInit()) {
@@ -49,15 +62,16 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  const int32_t dwidth = WIDTH / DSCALE;
-  const int32_t dheight = HEIGHT / DSCALE;
-  const int32_t npixels = dwidth * dheight;
+  parr.dwidth  = WIDTH / DSCALE;
+  parr.dheight = HEIGHT / DSCALE;
+  parr.npixels = parr.dwidth * parr.dheight;
 
-  printf("Screen width: %dpx\tDownscaled width: %dpx\n"
-         "Screen height: %dpx\tDownscaled height: %dpx\n",
-         WIDTH, dwidth, HEIGHT, dheight);
+  parr.pixels = malloc(parr.npixels * sizeof(uint32_t));
 
-  uint32_t *colorbuf = malloc(npixels * sizeof(uint32_t));
+  if (!parr.pixels) {
+    printf("PixelArray allocation failed\n");
+    return -1;
+  }
 
   glfwMakeContextCurrent(win);
   glfwSwapInterval(1);
@@ -71,7 +85,7 @@ int main(int argc, char **argv) {
   glBindTexture(GL_TEXTURE_2D, ftex);
 
   // Consider using GL_BGRA and GL_UNSIGNED_INT_8_8_8_8_REV
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, dwidth, dheight, 0, GL_RGBA,
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, parr.dwidth, parr.dheight, 0, GL_RGBA,
                GL_UNSIGNED_INT_8_8_8_8, NULL);
 
   uint32_t fbo;
@@ -83,40 +97,21 @@ int main(int argc, char **argv) {
 
   while (!glfwWindowShouldClose(win)) {
 
-    /*
-    double time = glfwGetTime();
-
-    uint8_t r = (sin(time) + 1) * 127;
-    uint8_t g = (cos(time) + 1) * 127;
-    uint8_t b = (cos(time + PI) + 1) * 127;
-    */
-
-    uint32_t grey = COLOR(0x1a, 0x1a, 0x1a, 0xff);
-
-    // Use vector intrinsics here...
-    for (uint32_t i = 0; i < npixels; ++i) {
-      colorbuf[i] = grey;
-    }
-
-    uint32_t white = COLOR(0xff, 0xff, 0xff, 0xff);
-
-    for (uint32_t i = 20000; i < 20050; ++i) {
-      colorbuf[i] = white;
-    }
+    clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
 
     // Is there another way of doing this?
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, dwidth, dheight, GL_RGBA,
-                    GL_UNSIGNED_INT_8_8_8_8, colorbuf);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, parr.dwidth, parr.dheight, GL_RGBA,
+                    GL_UNSIGNED_INT_8_8_8_8, parr.pixels);
 
     // Is this optimal?
-    glBlitFramebuffer(0, 0, dwidth, dheight, 0, 0, WIDTH, HEIGHT,
+    glBlitFramebuffer(0, 0, parr.dwidth, parr.dheight, 0, 0, WIDTH, HEIGHT,
                       GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
     glfwSwapBuffers(win);
     glfwPollEvents();
   }
 
-  free(colorbuf);
+  free(parr.pixels);
   glfwTerminate();
 
   return 0;
