@@ -31,15 +31,33 @@
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
 
 typedef struct {
-  int32_t dwidth, dheight, npixels;
+  int32_t dwidth, dheight, ox, oy, npixels;
   uint32_t *pixels;
 } PixelArray;
 
 PixelArray parr;
 
+static const uint8_t map[] = {
+  1, 1, 1, 1,
+  1, 0, 0, 1,
+  1, 0, 0, 1,
+  1, 1, 1, 1
+};
+
 static inline void clear_screen(uint32_t color) {
+
   for (uint32_t i = 0; i < parr.npixels; ++i) {
     parr.pixels[i] = color;
+  }
+}
+
+static inline void draw_vert_line(uint32_t color, int32_t x, int32_t len) {
+
+  int32_t top = parr.oy + len / 2;
+  int32_t bot = parr.oy - len / 2;
+
+  for (uint32_t i = bot; i < top; ++i) {
+    parr.pixels[i * parr.dwidth + x] = color;
   }
 }
 
@@ -64,6 +82,8 @@ int main(int argc, char **argv) {
 
   parr.dwidth  = WIDTH / DSCALE;
   parr.dheight = HEIGHT / DSCALE;
+  parr.ox = parr.dwidth / 2;
+  parr.oy = parr.dheight / 2;
   parr.npixels = parr.dwidth * parr.dheight;
 
   parr.pixels = malloc(parr.npixels * sizeof(uint32_t));
@@ -97,7 +117,11 @@ int main(int argc, char **argv) {
 
   while (!glfwWindowShouldClose(win)) {
 
+    double time = glfwGetTime();
+    double length = ((sin(time) + 1.0) * parr.oy) + 0.1;
+
     clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
+    draw_vert_line(COLOR(0xff, 0xff, 0xff, 0xff), parr.ox, length);
 
     // Is there another way of doing this?
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, parr.dwidth, parr.dheight, GL_RGBA,
