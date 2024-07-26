@@ -45,10 +45,8 @@ static const uint8_t map[] = {
 };
 
 static inline void clear_screen(uint32_t color) {
-
-  for (uint32_t i = 0; i < parr.npixels; ++i) {
+  for (uint32_t i = 0; i < parr.npixels; ++i)
     parr.pixels[i] = color;
-  }
 }
 
 static inline void draw_vert_line(uint32_t color, int32_t x, int32_t len) {
@@ -56,9 +54,8 @@ static inline void draw_vert_line(uint32_t color, int32_t x, int32_t len) {
   int32_t top = parr.oy + len / 2;
   int32_t bot = parr.oy - len / 2;
 
-  for (uint32_t i = bot; i < top; ++i) {
+  for (uint32_t i = bot; i < top; ++i)
     parr.pixels[i * parr.dwidth + x] = color;
-  }
 }
 
 int main(int argc, char **argv) {
