@@ -26,7 +26,7 @@
 #define WIDTH  960
 #define HEIGHT 720
 #define DSCALE 4
-#define PI     3.141592653589793
+#define PI     3.141592653589793f
 
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
 
@@ -45,16 +45,16 @@ static const uint8_t map[] = {
 };
 
 static inline void clear_screen(uint32_t color) {
-  for (uint32_t i = 0; i < parr.npixels; ++i)
+  for (int32_t i = 0; i < parr.npixels; ++i)
     parr.pixels[i] = color;
 }
 
-static inline void draw_vert_line(uint32_t color, int32_t x, int32_t len) {
+static inline void draw_vert_line(uint32_t color, int32_t x, float len) {
 
-  int32_t top = parr.oy + len / 2;
-  int32_t bot = parr.oy - len / 2;
+  int32_t top = (parr.oy + (len * parr.oy)) + 0.5f;
+  int32_t bot = (parr.oy - (len * parr.oy)) + 0.5f;
 
-  for (uint32_t i = bot; i < top; ++i)
+  for (int32_t i = bot; i < top; ++i)
     parr.pixels[i * parr.dwidth + x] = color;
 }
 
@@ -79,11 +79,10 @@ int main(int argc, char **argv) {
 
   parr.dwidth  = WIDTH / DSCALE;
   parr.dheight = HEIGHT / DSCALE;
-  parr.ox = parr.dwidth / 2;
-  parr.oy = parr.dheight / 2;
+  parr.ox      = parr.dwidth / 2;
+  parr.oy      = parr.dheight / 2;
   parr.npixels = parr.dwidth * parr.dheight;
-
-  parr.pixels = malloc(parr.npixels * sizeof(uint32_t));
+  parr.pixels  = malloc(parr.npixels * sizeof(uint32_t));
 
   if (!parr.pixels) {
     printf("PixelArray allocation failed\n");
@@ -114,11 +113,13 @@ int main(int argc, char **argv) {
 
   while (!glfwWindowShouldClose(win)) {
 
-    double time = glfwGetTime();
-    double length = ((sin(time) + 1.0) * parr.oy) + 0.1;
+    float time = glfwGetTime();
+    float length = (cos(time + PI) + 1.0f) / 2.0f;
 
     clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
-    draw_vert_line(COLOR(0xff, 0xff, 0xff, 0xff), parr.ox, length);
+
+    for (int32_t i = 0; i < parr.dwidth; ++i)
+      draw_vert_line(COLOR(0xff, 0xff, 0xff, 0xff), i, length);
 
     // Is there another way of doing this?
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, parr.dwidth, parr.dheight, GL_RGBA,
