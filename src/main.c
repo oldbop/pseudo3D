@@ -30,11 +30,19 @@
 
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
 
+typedef float vec2[2];
+
+typedef struct {
+  float dir;
+  vec2 pos;
+} Player;
+
 typedef struct {
   int32_t dwidth, dheight, ox, oy, npixels;
   uint32_t *pixels;
 } PixelArray;
 
+Player pl;
 PixelArray parr;
 
 static const uint8_t map[] = {
@@ -111,10 +119,24 @@ int main(int argc, char **argv) {
   glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                          GL_TEXTURE_2D, ftex, 0);
 
+  char title[32] = { 0 };
+  float lastf = 0.0f, lastt = 0.0f;
+
   while (!glfwWindowShouldClose(win)) {
 
-    float time = glfwGetTime();
-    float length = (cos(time + PI) + 1.0f) / 2.0f;
+    float curtime = glfwGetTime();
+    float timesincelastf = curtime - lastf;
+    float timesincelastt = curtime - lastt;
+
+    lastf = curtime;
+
+    if (timesincelastt >= 0.5f) {
+      snprintf(title, 32, "%s [FPS: %.2f]", TITLE, 1 / timesincelastf);
+      glfwSetWindowTitle(win, title);
+      lastt = curtime;
+    }
+    
+    float length = (cos(curtime + PI) + 1.0f) / 2.0f;
 
     clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
 
