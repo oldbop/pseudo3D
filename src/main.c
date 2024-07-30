@@ -124,19 +124,19 @@ int main(int argc, char **argv) {
 
   while (!glfwWindowShouldClose(win)) {
 
-    float curtime = glfwGetTime();
-    float timesincelastf = curtime - lastf;
-    float timesincelastt = curtime - lastt;
+    float time = glfwGetTime();
+    float dlastf = time - lastf;
+    float dlastt = time - lastt;
 
-    lastf = curtime;
+    lastf = time;
 
-    if (timesincelastt >= 0.5f) {
-      snprintf(title, 32, "%s [FPS: %.2f]", TITLE, 1 / timesincelastf);
+    if (dlastt >= 0.5f) {
+      snprintf(title, 32, "%s [FPS: %.2f]", TITLE, 1 / dlastf);
       glfwSetWindowTitle(win, title);
-      lastt = curtime;
+      lastt = time;
     }
     
-    float length = (cos(curtime + PI) + 1.0f) / 2.0f;
+    float length = (cos(time + PI) + 1.0f) / 2.0f;
 
     clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
 
