@@ -22,48 +22,52 @@
 
 #endif
 
-#define TITLE  "pseudo3D"
-#define WIDTH  960
-#define HEIGHT 720
-#define DSCALE 4
-#define PI     3.141592653589793f
+#define TITLE      "pseudo3D"
+#define SCR_WIDTH  960
+#define SCR_HEIGHT 720
+#define DSCALE     4
+#define PI         3.141592653589793f
 
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
 
-typedef float vec2[2];
+typedef float vec2f[2];
 
-typedef struct {
+struct Renderer {
+  int32_t width, height, cx, cy, npixels;
+  uint32_t *pixels, ftex, fbo;
+  char title[32];
+  GLFWwindow *win;
+} rdr;
+
+struct GameState {
+  vec2f pos;
   float dir;
-  vec2 pos;
-} Player;
-
-typedef struct {
-  int32_t dwidth, dheight, ox, oy, npixels;
-  uint32_t *pixels;
-} PixelArray;
-
-Player pl;
-PixelArray parr;
-
-static const uint8_t map[] = {
-  1, 1, 1, 1,
-  1, 0, 0, 1,
-  1, 0, 0, 1,
-  1, 1, 1, 1
-};
+} sta;
 
 static inline void clear_screen(uint32_t color) {
-  for (int32_t i = 0; i < parr.npixels; ++i)
-    parr.pixels[i] = color;
+  for (int32_t i = 0; i < rdr.npixels; ++i)
+    rdr.pixels[i] = color;
 }
 
 static inline void draw_vert_line(uint32_t color, int32_t x, float len) {
 
-  int32_t top = (parr.oy + (len * parr.oy)) + 0.5f;
-  int32_t bot = (parr.oy - (len * parr.oy)) + 0.5f;
+  int32_t top = (rdr.cy + (len * rdr.cy)) + 0.5f;
+  int32_t bot = (rdr.cy - (len * rdr.cy)) + 0.5f;
 
   for (int32_t i = bot; i < top; ++i)
-    parr.pixels[i * parr.dwidth + x] = color;
+    rdr.pixels[i * rdr.width + x] = color;
+}
+
+static inline void process_input(void) {
+
+}
+
+static inline void update_game(void) {
+
+}
+
+static inline void render(void) {
+
 }
 
 int main(int argc, char **argv) {
@@ -78,51 +82,48 @@ int main(int argc, char **argv) {
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint(GLFW_RESIZABLE, 0);
 
-  GLFWwindow *win = glfwCreateWindow(WIDTH, HEIGHT, TITLE, NULL, NULL);
+  rdr.win = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, TITLE, NULL, NULL);
 
-  if (!win) {
+  if (!rdr.win) {
     printf("GLFW: failed to create window\n");
     return -1;
   }
 
-  parr.dwidth  = WIDTH / DSCALE;
-  parr.dheight = HEIGHT / DSCALE;
-  parr.ox      = parr.dwidth / 2;
-  parr.oy      = parr.dheight / 2;
-  parr.npixels = parr.dwidth * parr.dheight;
-  parr.pixels  = malloc(parr.npixels * sizeof(uint32_t));
+  rdr.width   = SCR_WIDTH / DSCALE;
+  rdr.height  = SCR_HEIGHT / DSCALE;
+  rdr.cx      = rdr.width / 2;
+  rdr.cy      = rdr.height / 2;
+  rdr.npixels = rdr.width * rdr.height;
+  rdr.pixels  = malloc(rdr.npixels * sizeof(uint32_t));
 
-  if (!parr.pixels) {
+  if (!rdr.pixels) {
     printf("PixelArray allocation failed\n");
     return -1;
   }
 
-  glfwMakeContextCurrent(win);
+  glfwMakeContextCurrent(rdr.win);
   glfwSwapInterval(1);
 
   LOAD_GL();
 
-  glViewport(0, 0, WIDTH, HEIGHT);
+  glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
 
-  uint32_t ftex;
-  glGenTextures(1, &ftex);
-  glBindTexture(GL_TEXTURE_2D, ftex);
+  glGenTextures(1, &rdr.ftex);
+  glBindTexture(GL_TEXTURE_2D, rdr.ftex);
 
   // Consider using GL_BGRA and GL_UNSIGNED_INT_8_8_8_8_REV
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, parr.dwidth, parr.dheight, 0, GL_RGBA,
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rdr.width, rdr.height, 0, GL_RGBA,
                GL_UNSIGNED_INT_8_8_8_8, NULL);
 
-  uint32_t fbo;
-  glGenFramebuffers(1, &fbo);
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+  glGenFramebuffers(1, &rdr.fbo);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, rdr.fbo);
 
   glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                         GL_TEXTURE_2D, ftex, 0);
+                         GL_TEXTURE_2D, rdr.ftex, 0);
 
-  char title[32] = { 0 };
   float lastf = 0.0f, lastt = 0.0f;
 
-  while (!glfwWindowShouldClose(win)) {
+  while (!glfwWindowShouldClose(rdr.win)) {
 
     float time = glfwGetTime();
     float dlastf = time - lastf;
@@ -131,31 +132,32 @@ int main(int argc, char **argv) {
     lastf = time;
 
     if (dlastt >= 0.5f) {
-      snprintf(title, 32, "%s [FPS: %.2f]", TITLE, 1 / dlastf);
-      glfwSetWindowTitle(win, title);
+      snprintf(rdr.title, 32, "%s [FPS: %.2f]", TITLE, 1 / dlastf);
+      glfwSetWindowTitle(rdr.win, rdr.title);
       lastt = time;
     }
-    
-    float length = (cos(time + PI) + 1.0f) / 2.0f;
 
+    /* ============================== render() ============================== */
     clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
 
-    for (int32_t i = 0; i < parr.dwidth; ++i)
-      draw_vert_line(COLOR(0xff, 0xff, 0xff, 0xff), i, length);
+    for (int32_t i = 0; i < rdr.width; ++i)
+      draw_vert_line(COLOR(0xff, 0xff, 0xff, 0xff), i, 0.5);
 
     // Is there another way of doing this?
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, parr.dwidth, parr.dheight, GL_RGBA,
-                    GL_UNSIGNED_INT_8_8_8_8, parr.pixels);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, rdr.width, rdr.height, GL_RGBA,
+                    GL_UNSIGNED_INT_8_8_8_8, rdr.pixels);
 
     // Is this optimal?
-    glBlitFramebuffer(0, 0, parr.dwidth, parr.dheight, 0, 0, WIDTH, HEIGHT,
+    glBlitFramebuffer(0, 0, rdr.width, rdr.height, 0, 0, SCR_WIDTH, SCR_HEIGHT,
                       GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-    glfwSwapBuffers(win);
+    glfwSwapBuffers(rdr.win);
+    /* ====================================================================== */
+
     glfwPollEvents();
   }
 
-  free(parr.pixels);
+  free(rdr.pixels);
   glfwTerminate();
 
   return 0;
