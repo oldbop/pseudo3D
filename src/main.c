@@ -35,6 +35,7 @@ typedef float vec2f[2];
 struct Renderer {
   int32_t width, height, cx, cy, npixels;
   uint32_t *pixels, ftex, fbo;
+  float lastf, lastt;
   char title[32];
   GLFWwindow *win;
 } rdr;
@@ -59,7 +60,8 @@ static inline void draw_vert_line(uint32_t color, int32_t x, float len) {
 }
 
 static inline void process_input(void) {
-
+  if (glfwGetKey(rdr.win, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    glfwSetWindowShouldClose(rdr.win, 1);
 }
 
 static inline void update_game(void) {
@@ -68,6 +70,13 @@ static inline void update_game(void) {
 
 static inline void render(void) {
 
+  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, rdr.width, rdr.height, GL_RGBA,
+                  GL_UNSIGNED_INT_8_8_8_8, rdr.pixels);
+
+  glBlitFramebuffer(0, 0, rdr.width, rdr.height, 0, 0, SCR_WIDTH, SCR_HEIGHT,
+                    GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+  glfwSwapBuffers(rdr.win);
 }
 
 int main(int argc, char **argv) {
@@ -91,6 +100,8 @@ int main(int argc, char **argv) {
 
   rdr.width   = SCR_WIDTH / DSCALE;
   rdr.height  = SCR_HEIGHT / DSCALE;
+  rdr.lastf   = 0.0f;
+  rdr.lastt   = 0.0f;
   rdr.cx      = rdr.width / 2;
   rdr.cy      = rdr.height / 2;
   rdr.npixels = rdr.width * rdr.height;
@@ -121,38 +132,28 @@ int main(int argc, char **argv) {
   glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                          GL_TEXTURE_2D, rdr.ftex, 0);
 
-  float lastf = 0.0f, lastt = 0.0f;
-
   while (!glfwWindowShouldClose(rdr.win)) {
 
-    float time = glfwGetTime();
-    float dlastf = time - lastf;
-    float dlastt = time - lastt;
+    process_input();
 
-    lastf = time;
+    float time = glfwGetTime();
+    float dlastf = time - rdr.lastf;
+    float dlastt = time - rdr.lastt;
+
+    rdr.lastf = time;
 
     if (dlastt >= 0.5f) {
       snprintf(rdr.title, 32, "%s [FPS: %.2f]", TITLE, 1 / dlastf);
       glfwSetWindowTitle(rdr.win, rdr.title);
-      lastt = time;
+      rdr.lastt = time;
     }
 
-    /* ============================== render() ============================== */
     clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
 
     for (int32_t i = 0; i < rdr.width; ++i)
       draw_vert_line(COLOR(0xff, 0xff, 0xff, 0xff), i, 0.5);
 
-    // Is there another way of doing this?
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, rdr.width, rdr.height, GL_RGBA,
-                    GL_UNSIGNED_INT_8_8_8_8, rdr.pixels);
-
-    // Is this optimal?
-    glBlitFramebuffer(0, 0, rdr.width, rdr.height, 0, 0, SCR_WIDTH, SCR_HEIGHT,
-                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-    glfwSwapBuffers(rdr.win);
-    /* ====================================================================== */
+    render();
 
     glfwPollEvents();
   }
