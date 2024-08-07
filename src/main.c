@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -26,6 +27,7 @@
 #define SCR_WIDTH  960
 #define SCR_HEIGHT 720
 #define DSCALE     4
+#define FPS_CAP    360
 #define PI         3.141592653589793f
 
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
@@ -35,14 +37,13 @@ typedef float vec2f[2];
 struct Renderer {
   int32_t width, height, cx, cy, npixels;
   uint32_t *pixels, ftex, fbo;
-  float lastf, lastt;
+  double lastf, lastt, minspf;
   char title[32];
   GLFWwindow *win;
 } rdr;
 
 struct GameState {
-  vec2f pos;
-  float dir;
+  vec2f pos, dir;
 } sta;
 
 static inline void clear_screen(uint32_t color) {
@@ -70,11 +71,17 @@ static inline void update_game(void) {
 
 static inline void render(void) {
 
-  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, rdr.width, rdr.height, GL_RGBA,
-                  GL_UNSIGNED_INT_8_8_8_8, rdr.pixels);
+  glTexSubImage2D(GL_TEXTURE_2D,
+                  0, 0, 0,
+                  rdr.width, rdr.height,
+                  GL_RGBA,
+                  GL_UNSIGNED_INT_8_8_8_8,
+                  rdr.pixels);
 
-  glBlitFramebuffer(0, 0, rdr.width, rdr.height, 0, 0, SCR_WIDTH, SCR_HEIGHT,
-                    GL_COLOR_BUFFER_BIT, GL_NEAREST);
+  glBlitFramebuffer(0, 0, rdr.width, rdr.height,
+                    0, 0, SCR_WIDTH, SCR_HEIGHT,
+                    GL_COLOR_BUFFER_BIT,
+                    GL_NEAREST);
 
   glfwSwapBuffers(rdr.win);
 }
@@ -100,20 +107,21 @@ int main(int argc, char **argv) {
 
   rdr.width   = SCR_WIDTH / DSCALE;
   rdr.height  = SCR_HEIGHT / DSCALE;
-  rdr.lastf   = 0.0f;
-  rdr.lastt   = 0.0f;
+  rdr.minspf  = 1.0 / FPS_CAP;
+  rdr.lastf   = 0.0;
+  rdr.lastt   = 0.0;
   rdr.cx      = rdr.width / 2;
   rdr.cy      = rdr.height / 2;
   rdr.npixels = rdr.width * rdr.height;
   rdr.pixels  = malloc(rdr.npixels * sizeof(uint32_t));
 
   if (!rdr.pixels) {
-    printf("PixelArray allocation failed\n");
+    printf("Pixel array allocation failed\n");
     return -1;
   }
 
   glfwMakeContextCurrent(rdr.win);
-  glfwSwapInterval(1);
+  glfwSwapInterval(0);
 
   LOAD_GL();
 
@@ -123,27 +131,31 @@ int main(int argc, char **argv) {
   glBindTexture(GL_TEXTURE_2D, rdr.ftex);
 
   // Consider using GL_BGRA and GL_UNSIGNED_INT_8_8_8_8_REV
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rdr.width, rdr.height, 0, GL_RGBA,
-               GL_UNSIGNED_INT_8_8_8_8, NULL);
+  glTexImage2D(GL_TEXTURE_2D,
+               0, GL_RGBA,
+               rdr.width, rdr.height, 0,
+               GL_RGBA,
+               GL_UNSIGNED_INT_8_8_8_8,
+               NULL);
 
   glGenFramebuffers(1, &rdr.fbo);
   glBindFramebuffer(GL_READ_FRAMEBUFFER, rdr.fbo);
 
-  glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                         GL_TEXTURE_2D, rdr.ftex, 0);
+  glFramebufferTexture2D(GL_READ_FRAMEBUFFER,
+                         GL_COLOR_ATTACHMENT0,
+                         GL_TEXTURE_2D,
+                         rdr.ftex, 0);
 
   while (!glfwWindowShouldClose(rdr.win)) {
 
     process_input();
 
-    float time = glfwGetTime();
-    float dlastf = time - rdr.lastf;
-    float dlastt = time - rdr.lastt;
+    double time = glfwGetTime();
+    double dlastf = time - rdr.lastf;
+    double dlastt = time - rdr.lastt;
 
-    rdr.lastf = time;
-
-    if (dlastt >= 0.5f) {
-      snprintf(rdr.title, 32, "%s [FPS: %.2f]", TITLE, 1 / dlastf);
+    if (dlastt >= 0.5) {
+      snprintf(rdr.title, 32, "%s [FPS: %.2f]", TITLE, 1.0 / dlastf);
       glfwSetWindowTitle(rdr.win, rdr.title);
       rdr.lastt = time;
     }
@@ -151,9 +163,15 @@ int main(int argc, char **argv) {
     clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
 
     for (int32_t i = 0; i < rdr.width; ++i)
-      draw_vert_line(COLOR(0xff, 0xff, 0xff, 0xff), i, 0.5);
+      draw_vert_line(COLOR(0xff, 0xff, 0xff, 0xff), i, 0.5f);
 
     render();
+    rdr.lastf = time;
+
+    struct timeval delay = { 0, (time + rdr.minspf - glfwGetTime()) * 1.0E+6 };
+
+    if (delay.tv_usec > 0 && delay.tv_usec < 1.0E+6)
+      select(0, NULL, NULL, NULL, &delay);
 
     glfwPollEvents();
   }
