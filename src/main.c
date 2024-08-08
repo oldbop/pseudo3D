@@ -27,7 +27,7 @@
 #define SCR_WIDTH  960
 #define SCR_HEIGHT 720
 #define DSCALE     4
-#define FPS_CAP    360
+#define FPS_CAP    1000
 #define PI         3.141592653589793f
 
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
@@ -36,7 +36,7 @@ typedef float vec2f[2];
 
 struct Renderer {
   int32_t width, height, cx, cy, npixels;
-  uint32_t *pixels, ftex, fbo;
+  uint32_t *pixels, ftex, fbo, nframes;
   double lastf, lastt, minspf;
   char title[32];
   GLFWwindow *win;
@@ -108,6 +108,7 @@ int main(int argc, char **argv) {
   rdr.width   = SCR_WIDTH / DSCALE;
   rdr.height  = SCR_HEIGHT / DSCALE;
   rdr.minspf  = 1.0 / FPS_CAP;
+  rdr.nframes = 0;
   rdr.lastf   = 0.0;
   rdr.lastt   = 0.0;
   rdr.cx      = rdr.width / 2;
@@ -154,24 +155,27 @@ int main(int argc, char **argv) {
     double dlastf = time - rdr.lastf;
     double dlastt = time - rdr.lastt;
 
-    if (dlastt >= 0.5) {
-      snprintf(rdr.title, 32, "%s [FPS: %.2f]", TITLE, 1.0 / dlastf);
-      glfwSetWindowTitle(rdr.win, rdr.title);
-      rdr.lastt = time;
+    if (dlastf >= rdr.minspf) {
+
+      clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
+
+      for (int32_t i = 0; i < rdr.width; ++i)
+        draw_vert_line(COLOR(0xff, 0xff, 0xff, 0xff), i, 0.5f);
+
+      render();
+
+      rdr.lastf = time;
+      rdr.nframes++;
     }
 
-    clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
+    if (dlastt >= 0.5) {
 
-    for (int32_t i = 0; i < rdr.width; ++i)
-      draw_vert_line(COLOR(0xff, 0xff, 0xff, 0xff), i, 0.5f);
+      snprintf(rdr.title, 32, "%s [FPS: %d]", TITLE, rdr.nframes * 2);
+      glfwSetWindowTitle(rdr.win, rdr.title);
 
-    render();
-    rdr.lastf = time;
-
-    struct timeval delay = { 0, (time + rdr.minspf - glfwGetTime()) * 1.0E+6 };
-
-    if (delay.tv_usec > 0 && delay.tv_usec < 1.0E+6)
-      select(0, NULL, NULL, NULL, &delay);
+      rdr.lastt = time;
+      rdr.nframes = 0;
+    }
 
     glfwPollEvents();
   }
