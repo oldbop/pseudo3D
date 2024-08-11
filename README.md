@@ -1,6 +1,6 @@
 # pseudo3D
 
-A project to track my learning of OpenGL.
+Old school raycaster with OpenGL and C.
 
 ### Configure ➡️  Build ➡️  Run
 
