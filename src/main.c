@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include <sys/select.h>
 
 #define GLFW_INCLUDE_NONE
@@ -27,7 +28,7 @@
 #define SCR_WIDTH  960
 #define SCR_HEIGHT 720
 #define DSCALE     4
-#define FPS_CAP    360
+#define FPS_CAP    500
 #define PI         3.141592653589793f
 
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
@@ -168,10 +169,12 @@ int main(int argc, char **argv) {
     render();
     rdr.lastf = time;
 
+    /* ======================== POSIX dependent code ======================== */
     struct timeval delay = { 0, (time + rdr.minspf - glfwGetTime()) * 1.0E+6 };
 
     if (delay.tv_usec > 0 && delay.tv_usec < 1.0E+6)
       select(0, NULL, NULL, NULL, &delay);
+    /* ====================================================================== */
 
     glfwPollEvents();
   }
