@@ -1,6 +1,6 @@
 # pseudo3D
 
-Old school raycaster with OpenGL and C.
+Old school raycaster written in C.
 
 ### Configure ➡️  Build ➡️  Run
 
