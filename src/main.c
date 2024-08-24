@@ -1,13 +1,28 @@
-#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include <sys/select.h>
-
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
+
+#ifdef _WIN32
+#include <windows.h>
+
+#define SLEEP(ms) Sleep(ms)
+
+#else
+#include <sys/select.h>
+
+#define SLEEP(ms)                                         \
+do {                                                      \
+  struct timeval delay = { 0, ms * 1.0E+3 };              \
+                                                          \
+  if (delay.tv_usec > 0 && delay.tv_usec < 1.0E+6)        \
+    select(0, NULL, NULL, NULL, &delay);                  \
+} while(0)
+
+#endif
 
 #ifdef SYS_GL_HEADERS
 #define GL_GLEXT_PROTOTYPES
@@ -24,14 +39,14 @@
 
 #endif
 
+#define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
+
 #define TITLE      "pseudo3D"
 #define SCR_WIDTH  960
 #define SCR_HEIGHT 720
 #define DSCALE     4
-#define FPS_CAP    500
+#define FPS_CAP    2000
 #define PI         3.141592653589793f
-
-#define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
 
 typedef float vec2f[2];
 
@@ -108,13 +123,14 @@ int main(int argc, char **argv) {
 
   rdr.width   = SCR_WIDTH / DSCALE;
   rdr.height  = SCR_HEIGHT / DSCALE;
-  rdr.minspf  = 1.0 / FPS_CAP;
-  rdr.lastf   = 0.0;
-  rdr.lastt   = 0.0;
   rdr.cx      = rdr.width / 2;
   rdr.cy      = rdr.height / 2;
   rdr.npixels = rdr.width * rdr.height;
-  rdr.pixels  = malloc(rdr.npixels * sizeof(uint32_t));
+  rdr.lastf   = 0.0;
+  rdr.lastt   = 0.0;
+  rdr.minspf  = 1.0 / FPS_CAP;
+
+  rdr.pixels = malloc(rdr.npixels * sizeof(uint32_t));
 
   if (!rdr.pixels) {
     printf("Pixel array allocation failed\n");
@@ -151,7 +167,7 @@ int main(int argc, char **argv) {
 
     process_input();
 
-    double time = glfwGetTime();
+    double time   = glfwGetTime();
     double dlastf = time - rdr.lastf;
     double dlastt = time - rdr.lastt;
 
@@ -169,13 +185,7 @@ int main(int argc, char **argv) {
     render();
     rdr.lastf = time;
 
-    /* ======================== POSIX dependent code ======================== */
-    struct timeval delay = { 0, (time + rdr.minspf - glfwGetTime()) * 1.0E+6 };
-
-    if (delay.tv_usec > 0 && delay.tv_usec < 1.0E+6)
-      select(0, NULL, NULL, NULL, &delay);
-    /* ====================================================================== */
-
+    SLEEP((time + rdr.minspf - glfwGetTime()) * 1.0E+3);
     glfwPollEvents();
   }
 
