@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,6 +42,8 @@ do {                                                      \
 
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
 
+#define PI      3.141592653589793f
+
 #define TITLE   "pseudo3D"
 #define MAP_W   8
 #define MAP_H   8
@@ -48,40 +51,43 @@ do {                                                      \
 #define SCR_H   720
 #define DSCALE  4
 #define FPS_CAP 2000
-#define PI      3.141592653589793f
+
+#define DWIDTH  (SCR_W / DSCALE)
+#define DHEIGHT (SCR_H / DSCALE)
+#define CX      (DWIDTH / 2)
+#define CY      (DHEIGHT / 2)
+#define NPIXELS (DWIDTH * DHEIGHT)
+#define MINSPF  (1.0 / FPS_CAP)
 
 typedef float vec2f[2];
-typedef float vec3f[3];
-typedef int32_t vec2i[2];
-typedef int32_t vec3i[3];
-
-typedef uint8_t Map[MAP_W * MAP_H];
 
 typedef struct {
-  int32_t width, height, cx, cy, npixels;
+  vec2f dir;
+  float mag;
+  uint8_t hit;
+} Ray;
+
+typedef struct {
   uint32_t *pixels, ftex, fbo;
-  double dlastf, dlastt, minspf;
+  double dlastf, dlastt;
   char title[32];
   GLFWwindow *win;
 } Renderer;
 
 typedef struct {
-  vec2f pos, dir;
+  vec2f pos, dir, proj;
+  float fov;
+  Ray rays[DWIDTH];
+  uint8_t map[MAP_W * MAP_H];
   double time;
-  Map map;
 } GameState;
 
-Renderer rdr = {
-  .width   = SCR_W / DSCALE,
-  .height  = SCR_H / DSCALE,
-  .cx      = SCR_W / (DSCALE * 2),
-  .cy      = SCR_H / (DSCALE * 2),
-  .npixels = (SCR_W / DSCALE) * (SCR_H / DSCALE),
-  .minspf  = 1.0 / FPS_CAP
-};
+static Renderer rdr;
 
-GameState sta = {
-  .pos = { MAP_W / 2.0f, MAP_H / 2.0f }, .dir = { 0.0f, 1.0f },
+static GameState sta = {
+  .pos = { MAP_W / 2.0f, MAP_H / 2.0f },
+  .dir = { 0.0f, 1.0f }, .proj = { 1.0f, 0.0f },
+  .fov = PI / 2.0f,
   .map = {
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 0, 0, 0, 0, 1, 0, 1,
@@ -94,39 +100,49 @@ GameState sta = {
   }
 };
 
+static inline void process_input(void) {
+
+  if (glfwGetKey(rdr.win, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    glfwSetWindowShouldClose(rdr.win, 1);
+
+  if (glfwGetKey(rdr.win, GLFW_KEY_W) == GLFW_PRESS)
+    sta.pos[1] += 0.01f;
+
+  if (glfwGetKey(rdr.win, GLFW_KEY_S) == GLFW_PRESS)
+    sta.pos[1] -= 0.01f;
+
+  if (glfwGetKey(rdr.win, GLFW_KEY_D) == GLFW_PRESS)
+    sta.pos[0] += 0.01f;
+
+  if (glfwGetKey(rdr.win, GLFW_KEY_A) == GLFW_PRESS)
+    sta.pos[0] -= 0.01f;
+}
+
 static inline void clear_screen(uint32_t color) {
-  for (int32_t i = 0; i < rdr.npixels; ++i)
+
+  for (int32_t i = 0; i < NPIXELS; ++i)
     rdr.pixels[i] = color;
 }
 
 static inline void draw_vert_line(uint32_t color, int32_t x, float len) {
 
-  int32_t top = (rdr.cy + (len * rdr.cy)) + 0.5f;
-  int32_t bot = (rdr.cy - (len * rdr.cy)) + 0.5f;
+  int32_t top = ((int32_t) CY + (len * (int32_t) CY)) + 0.5f;
+  int32_t bot = ((int32_t) CY - (len * (int32_t) CY)) + 0.5f;
 
   for (int32_t i = bot; i < top; ++i)
-    rdr.pixels[i * rdr.width + x] = color;
-}
-
-static inline void process_input(void) {
-  if (glfwGetKey(rdr.win, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-    glfwSetWindowShouldClose(rdr.win, 1);
-}
-
-static inline void update_game(void) {
-
+    rdr.pixels[x + i * DWIDTH] = color;
 }
 
 static inline void render(void) {
 
   glTexSubImage2D(GL_TEXTURE_2D,
                   0, 0, 0,
-                  rdr.width, rdr.height,
+                  DWIDTH, DHEIGHT,
                   GL_RGBA,
                   GL_UNSIGNED_INT_8_8_8_8,
                   rdr.pixels);
 
-  glBlitFramebuffer(0, 0, rdr.width, rdr.height,
+  glBlitFramebuffer(0, 0, DWIDTH, DHEIGHT,
                     0, 0, SCR_W, SCR_H,
                     GL_COLOR_BUFFER_BIT,
                     GL_NEAREST);
@@ -153,7 +169,7 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  rdr.pixels = malloc(rdr.npixels * sizeof(uint32_t));
+  rdr.pixels = malloc(NPIXELS * sizeof(uint32_t));
 
   if (!rdr.pixels) {
     printf("Pixel array allocation failed\n");
@@ -173,7 +189,7 @@ int main(int argc, char **argv) {
   // Consider using GL_BGRA and GL_UNSIGNED_INT_8_8_8_8_REV
   glTexImage2D(GL_TEXTURE_2D,
                0, GL_RGBA,
-               rdr.width, rdr.height, 0,
+               DWIDTH, DHEIGHT, 0,
                GL_RGBA,
                GL_UNSIGNED_INT_8_8_8_8,
                NULL);
@@ -205,13 +221,10 @@ int main(int argc, char **argv) {
 
     clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
 
-    for (int32_t i = 0; i < rdr.width; ++i)
-      draw_vert_line(COLOR(0xff, 0xff, 0xff, 0xff), i, 0.5f);
-
     render();
     lastf = sta.time;
 
-    SLEEP_MS((sta.time + rdr.minspf - glfwGetTime()) * 1.0E+3);
+    SLEEP_MS((sta.time + MINSPF - glfwGetTime()) * 1.0E+3);
 
     glfwPollEvents();
   }
