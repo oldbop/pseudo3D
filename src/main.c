@@ -49,7 +49,7 @@ do {                                                      \
 #define MAP_H   8
 #define SCR_W   960
 #define SCR_H   720
-#define DSCALE  4
+#define DSCALE  4.0f
 #define FPS_CAP 2000
 
 #define DWIDTH  (SCR_W / DSCALE)
@@ -77,7 +77,6 @@ typedef struct {
 typedef struct {
   vec2f pos, dir, proj;
   float fov;
-  Ray rays[DWIDTH];
   uint8_t map[MAP_W * MAP_H];
   double time;
 } GameState;
@@ -120,17 +119,17 @@ static inline void process_input(void) {
 
 static inline void clear_screen(uint32_t color) {
 
-  for (int32_t i = 0; i < NPIXELS; ++i)
+  for (uint32_t i = 0; i < NPIXELS; ++i)
     rdr.pixels[i] = color;
 }
 
-static inline void draw_vert_line(uint32_t color, int32_t x, float len) {
+static inline void draw_vert_line(uint32_t color, uint32_t x, float len) {
 
-  int32_t top = ((int32_t) CY + (len * (int32_t) CY)) + 0.5f;
-  int32_t bot = ((int32_t) CY - (len * (int32_t) CY)) + 0.5f;
+  uint32_t top = ((uint32_t) CY + (len * (uint32_t) CY)) + 0.5f;
+  uint32_t bot = ((uint32_t) CY - (len * (uint32_t) CY)) + 0.5f;
 
-  for (int32_t i = bot; i < top; ++i)
-    rdr.pixels[x + i * DWIDTH] = color;
+  for (uint32_t i = bot; i < top; ++i)
+    rdr.pixels[x + i * (uint32_t) DWIDTH] = color;
 }
 
 static inline void render(void) {
@@ -220,6 +219,26 @@ int main(int argc, char **argv) {
     }
 
     clear_screen(COLOR(0x1a, 0x1a, 0x1a, 0xff));
+
+    for (uint32_t i = 0; i < DWIDTH; ++i) {
+
+      float ndc = ((2.0f * i) / DWIDTH) - 1.0f;
+
+      Ray ray = { 
+        .dir = { sta.dir[0] + (sta.proj[0] * ndc),
+                 sta.dir[1] + (sta.proj[1] * ndc) },
+        .mag = 0.0f,
+        .hit = 0
+      };
+
+      float dirx2 = ray.dir[0] * ray.dir[0];
+      float diry2 = ray.dir[1] * ray.dir[1];
+
+      float ustepx = (ray.dir[0] == 0.0f) ? 1E+20 : sqrt(1 + (diry2 / dirx2));
+      float ustepy = (ray.dir[1] == 0.0f) ? 1E+20 : sqrt(1 + (dirx2 / diry2));
+
+
+    }
 
     render();
     lastf = sta.time;
