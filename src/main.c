@@ -42,6 +42,11 @@ do {                                                      \
 
 #define COLOR(r, g, b, a) (r << 24) | (g << 16) | (b << 8)  | (a << 0)
 
+#define MIN(v, min) (v < min) ? min : v
+#define MAX(v, max) (v > max) ? max : v
+#define CLAMP(v, min, max) (v < min) ? min : ((v > max) ? max : v)
+#define SIGN(v) (v > 0) ? 1 : ((v < 0) ? -1 : 0)
+
 #define PI      3.141592653589793f
 
 #define TITLE   "pseudo3D"
@@ -49,22 +54,24 @@ do {                                                      \
 #define MAP_H   8
 #define SCR_W   960
 #define SCR_H   720
-#define DSCALE  4.0f
+#define DSCALE  2.0f
 #define FPS_CAP 2000
+#define FOV     (PI / 3.0f)
 
 #define DWIDTH  (SCR_W / DSCALE)
 #define DHEIGHT (SCR_H / DSCALE)
-#define CX      (DWIDTH / 2)
-#define CY      (DHEIGHT / 2)
+#define CX      (DWIDTH / 2.0f)
+#define CY      (DHEIGHT / 2.0f)
 #define NPIXELS (DWIDTH * DHEIGHT)
 #define MINSPF  (1.0 / FPS_CAP)
 
 typedef float vec2f[2];
+typedef int32_t vec2i[2];
 
 typedef struct {
-  vec2f dir;
-  float mag;
-  uint8_t hit;
+  vec2i pos, ustep;
+  vec2f dir, mag, estep, offset;
+  uint8_t hit, nsew;
 } Ray;
 
 typedef struct {
@@ -76,7 +83,6 @@ typedef struct {
 
 typedef struct {
   vec2f pos, dir, proj;
-  float fov;
   uint8_t map[MAP_W * MAP_H];
   double time;
 } GameState;
@@ -85,16 +91,15 @@ static Renderer rdr;
 
 static GameState sta = {
   .pos = { MAP_W / 2.0f, MAP_H / 2.0f },
-  .dir = { 0.0f, 1.0f }, .proj = { 1.0f, 0.0f },
-  .fov = PI / 2.0f,
+  .dir = { 0.0f, 1.0f },
   .map = {
     1, 1, 1, 1, 1, 1, 1, 1,
-    1, 0, 0, 0, 0, 1, 0, 1,
-    1, 0, 0, 0, 0, 1, 0, 1,
-    1, 0, 0, 0, 0, 1, 0, 1,
-    1, 0, 0, 0, 0, 1, 0, 1,
-    1, 0, 0, 0, 1, 1, 0, 1,
     1, 0, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 1, 0, 0, 1,
     1, 1, 1, 1, 1, 1, 1, 1
   }
 };
@@ -115,6 +120,9 @@ static inline void process_input(void) {
 
   if (glfwGetKey(rdr.win, GLFW_KEY_A) == GLFW_PRESS)
     sta.pos[0] -= 0.01f;
+
+  sta.pos[0] = CLAMP(sta.pos[0], 1.1f, MAP_W - 1.1f);
+  sta.pos[1] = CLAMP(sta.pos[1], 1.1f, MAP_H - 1.1f);
 }
 
 static inline void clear_screen(uint32_t color) {
@@ -124,6 +132,8 @@ static inline void clear_screen(uint32_t color) {
 }
 
 static inline void draw_vert_line(uint32_t color, uint32_t x, float len) {
+
+  len = CLAMP(len, 0.0f, 1.0f);
 
   uint32_t top = ((uint32_t) CY + (len * (uint32_t) CY)) + 0.5f;
   uint32_t bot = ((uint32_t) CY - (len * (uint32_t) CY)) + 0.5f;
@@ -175,6 +185,12 @@ int main(int argc, char **argv) {
     return -1;
   }
 
+  sta.proj[0] = tan(FOV / 2.0f);
+  sta.proj[1] = 0.0f;
+
+  printf("dir = ( %.2f %.2f ), proj = ( %.2f %.2f )\n",
+         sta.dir[0], sta.dir[1], sta.proj[0], sta.proj[1]);
+
   glfwMakeContextCurrent(rdr.win);
   glfwSwapInterval(0);
 
@@ -212,6 +228,8 @@ int main(int argc, char **argv) {
 
     process_input();
 
+    printf("position = ( %.2f %.2f )\r", sta.pos[0], sta.pos[1]);
+
     if (rdr.dlastt >= 0.5) {
       snprintf(rdr.title, 32, "%s [FPS: %.2f]", TITLE, 1.0 / rdr.dlastf);
       glfwSetWindowTitle(rdr.win, rdr.title);
@@ -222,22 +240,53 @@ int main(int argc, char **argv) {
 
     for (uint32_t i = 0; i < DWIDTH; ++i) {
 
-      float ndc = ((2.0f * i) / DWIDTH) - 1.0f;
+      float ndc = (2.0f * i / DWIDTH) - 1.0f;
 
-      Ray ray = { 
-        .dir = { sta.dir[0] + (sta.proj[0] * ndc),
-                 sta.dir[1] + (sta.proj[1] * ndc) },
-        .mag = 0.0f,
-        .hit = 0
+      Ray ray = {
+        .pos = { sta.pos[0], sta.pos[1] },
+        .dir = {
+          sta.dir[0] + (sta.proj[0] * ndc),
+          sta.dir[1] + (sta.proj[1] * ndc)
+        }
       };
 
-      float dirx2 = ray.dir[0] * ray.dir[0];
-      float diry2 = ray.dir[1] * ray.dir[1];
+      ray.ustep[0] = SIGN(ray.dir[0]);
+      ray.ustep[1] = SIGN(ray.dir[1]);
 
-      float ustepx = (ray.dir[0] == 0.0f) ? 1E+20 : sqrt(1 + (diry2 / dirx2));
-      float ustepy = (ray.dir[1] == 0.0f) ? 1E+20 : sqrt(1 + (dirx2 / diry2));
+      vec2f raydir2 = {
+        ray.dir[0] * ray.dir[0],
+        ray.dir[1] * ray.dir[1]
+      };
 
+      ray.estep[0] = (ray.dir[0] == 0) ? 1.0E+20 : sqrt(1 + (raydir2[1] / raydir2[0]));
+      ray.estep[1] = (ray.dir[1] == 0) ? 1.0E+20 : sqrt(1 + (raydir2[0] / raydir2[1]));
 
+      ray.offset[0] = (ray.dir[0] >= 0) ? (ray.pos[0] + 1.0f - sta.pos[0]) : (sta.pos[0] - ray.pos[0]);
+      ray.offset[1] = (ray.dir[1] >= 0) ? (ray.pos[1] + 1.0f - sta.pos[1]) : (sta.pos[1] - ray.pos[1]);
+
+      ray.mag[0] = ray.offset[0] * ray.estep[0];
+      ray.mag[1] = ray.offset[1] * ray.estep[1];
+
+      while (!ray.hit) {
+        if (ray.mag[0] < ray.mag[1]) {  
+          ray.mag[0] += ray.estep[0];
+          ray.pos[0] += ray.ustep[0];
+          ray.nsew = 0;
+        } else {
+          ray.mag[1] += ray.estep[1];
+          ray.pos[1] += ray.ustep[1];
+          ray.nsew = 1;
+        }
+        ray.hit = sta.map[ray.pos[1] * MAP_W + ray.pos[0]];
+      }
+
+      float walldist = (ray.nsew == 1) ? (ray.mag[1] - ray.estep[1]) : (ray.mag[0] - ray.estep[0]);
+
+      if (ray.nsew) {
+        draw_vert_line(COLOR(0xff, 0xff, 0x00, 0xff), i, 1.0f / walldist);
+      } else {
+        draw_vert_line(COLOR(0xff, 0x00, 0xff, 0xff), i, 1.0f / walldist);
+      }
     }
 
     render();
