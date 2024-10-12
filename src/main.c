@@ -188,9 +188,6 @@ int main(int argc, char **argv) {
   sta.proj[0] = tan(FOV / 2.0f);
   sta.proj[1] = 0.0f;
 
-  printf("dir = ( %.2f %.2f ), proj = ( %.2f %.2f )\n",
-         sta.dir[0], sta.dir[1], sta.proj[0], sta.proj[1]);
-
   glfwMakeContextCurrent(rdr.win);
   glfwSwapInterval(0);
 
@@ -228,8 +225,6 @@ int main(int argc, char **argv) {
 
     process_input();
 
-    printf("position = ( %.2f %.2f )\r", sta.pos[0], sta.pos[1]);
-
     if (rdr.dlastt >= 0.5) {
       snprintf(rdr.title, 32, "%s [FPS: %.2f]", TITLE, 1.0 / rdr.dlastf);
       glfwSetWindowTitle(rdr.win, rdr.title);
@@ -253,13 +248,9 @@ int main(int argc, char **argv) {
       ray.ustep[0] = SIGN(ray.dir[0]);
       ray.ustep[1] = SIGN(ray.dir[1]);
 
-      vec2f raydir2 = {
-        ray.dir[0] * ray.dir[0],
-        ray.dir[1] * ray.dir[1]
-      };
-
-      ray.estep[0] = (ray.dir[0] == 0) ? 1.0E+20 : sqrt(1 + (raydir2[1] / raydir2[0]));
-      ray.estep[1] = (ray.dir[1] == 0) ? 1.0E+20 : sqrt(1 + (raydir2[0] / raydir2[1]));
+      // Taking |ray.dir| = 1
+      ray.estep[0] = (ray.dir[0] == 0) ? 1.0E+20 : fabs(1.0f / ray.dir[0]);
+      ray.estep[1] = (ray.dir[1] == 0) ? 1.0E+20 : fabs(1.0f / ray.dir[1]);
 
       ray.offset[0] = (ray.dir[0] >= 0) ? (ray.pos[0] + 1.0f - sta.pos[0]) : (sta.pos[0] - ray.pos[0]);
       ray.offset[1] = (ray.dir[1] >= 0) ? (ray.pos[1] + 1.0f - sta.pos[1]) : (sta.pos[1] - ray.pos[1]);
